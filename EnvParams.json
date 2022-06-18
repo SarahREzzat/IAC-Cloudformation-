@@ -1,0 +1,26 @@
+[
+    {
+        "ParameterKey": "Suffix",
+        "ParameterValue": "Udagram"
+    },
+    {
+        "ParameterKey": "VPCCidr",
+        "ParameterValue": "10.0.0.0/16"
+    },
+    {
+        "ParameterKey": "PublicOneCidr",
+        "ParameterValue": "10.0.1.0/24"
+    },
+    {
+        "ParameterKey": "PublicTwoCidr",
+        "ParameterValue": "10.0.2.0/24"
+    },
+    {
+        "ParameterKey": "PrivateOneCidr",
+        "ParameterValue": "10.0.3.0/24"
+    },
+    {
+        "ParameterKey": "PrivateTwoCidr",
+        "ParameterValue": "10.0.4.0/24"
+    }
+]

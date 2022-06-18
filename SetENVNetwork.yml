@@ -1,0 +1,246 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Hosting High-Avalisbility Web Udagram-Udacity
+Parameters:
+  Suffix:
+    Description: This suffix is used to present the deployment environment and the deployed app 
+    Type: String 
+    Default: Test-Udagram
+  VPCCidr:
+    Description: This is the Cidr for your VPC
+    Type: String
+    Default: 10.0.0.0/16
+  PublicOneCidr:
+    Description: This is the cidr of public subnet one 
+    Type: String
+    Default: 10.0.1.0/24
+  PublicTwoCidr:
+    Description: This is the cidr of the public subnet two
+    Type: String
+    Default: 10.0.2.0/24
+  PrivateOneCidr:
+    Description: This is the cidr of the private subnet one 
+    Type: String
+    Default: 10.0.3.0/24
+  PrivateTwoCidr:
+    Description: This is the cidr of the provate subnet two
+    Type: String
+    Default: 10.0.4.0/24
+
+Outputs:
+  VPCID:
+    Description: This is the output of the VPCID 
+    Value: !Ref MyVPC
+    Export:
+      Name: !Sub ${Suffix}-VPCID
+  PublicSubnetOneID:
+    Description: This is the output of public subnetA
+    Value: !Ref SubnetPublicOne
+    Export:
+      Name: !Sub ${Suffix}-PublicA
+  PublicSubnetTwoID:
+    Description: This is the output of public subnetB
+    Value: !Ref SubnetPublicTwo
+    Export:
+      Name: !Sub ${Suffix}-PublicB
+  PrivateSubnetOneID:
+    Description: This is the output of public subnetA
+    Value: !Ref SubnetPrivateOne
+    Export:
+      Name: !Sub ${Suffix}-PrivateA
+  PrivateSubnetTwoID:
+    Description: This is the output of public subnetA
+    Value: !Ref SubnetPrivateTwo
+    Export:
+      Name: !Sub ${Suffix}-PrivateB
+  
+
+#----- this is the VPC
+Resources:
+  MyVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref VPCCidr
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-VPC
+
+#----- The Internet Gateway
+  InterGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-IGW
+
+#----- Attach of the IGW
+  VPCGatewayAttach:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties: 
+      InternetGatewayId: !Ref InterGateway
+      VpcId: !Ref MyVPC
+        
+#----- there are the subnets
+  SubnetPublicOne:
+    Type: 'AWS::EC2::Subnet'
+    Properties: 
+      VpcId: !Ref MyVPC
+      AvailabilityZone:  !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PublicOneCidr
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-PublicSubnetA
+  
+  SubnetPublicTwo:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Ref PublicTwoCidr
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-PublicSubnetB
+  
+  SubnetPrivateOne:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PrivateOneCidr
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-PrivateSubnetA
+
+  SubnetPrivateTwo:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Ref PrivateTwoCidr
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-PrivateSubnetB
+
+#---------------- EIP for natOne
+  NatEIP:
+    Type: 'AWS::EC2::EIP'
+    Properties: 
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-Nat-EIB
+       
+#--------------- Nat Gateway
+  NatGateway:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      ConnectivityType: public
+      SubnetId: !Ref SubnetPublicTwo
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-Nat
+  
+#----- Route tables to divide the created subnets to public & private 
+  PublicRoutetable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-Public-RT
+      VpcId: !Ref MyVPC
+
+  PrivateRoutetable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${Suffix}-Private-RT
+      VpcId: !Ref MyVPC
+
+#------- Create routes to be added to the above route tables 
+  RouteToPublic:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InterGateway
+      RouteTableId: !Ref PublicRoutetable
+
+  RoutefromPrivate:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+      RouteTableId: !Ref PrivateRoutetable
+    DependsOn: NatGateway
+
+#------- associate subnets to route tables
+  PublicSubnetOneRouteAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PublicRoutetable
+      SubnetId: !Ref SubnetPublicOne
+
+  PublicSubnetTwoRouteAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PublicRoutetable
+      SubnetId: !Ref SubnetPublicTwo
+  
+  PrivateSubnetOneRouteAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateRoutetable
+      SubnetId: !Ref SubnetPrivateOne
+  
+  PrivateSubnetTwoRouteAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateRoutetable
+      SubnetId: !Ref SubnetPrivateTwo
+
+#------ security groups for the bastion and the autoscaling group 
+  # BastionSG:
+  #   Type: 'AWS::EC2::SecurityGroup'
+  #   Properties:
+  #     GroupDescription: This group allow 22 from anywhere but that will be better if you restricted it to your ip
+  #     GroupName: !Sub ${Suffix}-Bastion-SG
+  #     SecurityGroupEgress: 
+  #       - IpProtocol: "-1"
+  #         CidrIp: 0.0.0.0/0
+  #     SecurityGroupIngress:
+  #       - IpProtocol: tcp
+  #         FromPort: 22
+  #         ToPort: 22
+  #         CidrIp: 0.0.0.0/0
+  #     VpcId: !Ref MyVPC
+  
+  # SecurityGroupForWeb:
+  #   Type: 'AWS::EC2::SecurityGroup'
+  #   Properties:
+  #     GroupDescription: This group allow 80 from anywhere we are restrict it to be allowed from the LB only
+  #     GroupName: !Sub ${Suffix}-Udagram-SG
+  #     SecurityGroupEgress: 
+  #       - IpProtocol: "-1"
+  #         CidrIp: 0.0.0.0/0
+  #     SecurityGroupIngress:
+  #       - IpProtocol: tcp
+  #         FromPort: 80
+  #         ToPort: 80
+  #         CidrIp: 0.0.0.0/0
+  #     VpcId: !Ref MyVPC
+
+  # SecurityGroupForLB:
+  #   Type: 'AWS::EC2::SecurityGroup'
+  #   Properties:
+  #     GroupDescription: This group allow 80 from anywhere to LB
+  #     GroupName: WebGroup
+  #     SecurityGroupEgress: 
+  #       - IpProtocol: "-1"
+  #         CidrIp: 0.0.0.0/0
+  #     SecurityGroupIngress:
+  #       - IpProtocol: tcp
+  #         FromPort: 80
+  #         ToPort: 80
+  #         CidrIp: 0.0.0.0/0
+  #     VpcId: !Ref MyVPC
+
+  
